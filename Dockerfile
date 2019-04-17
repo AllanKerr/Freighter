@@ -1,0 +1,7 @@
+FROM golang:1.12
+
+ARG PROJECT_DIR
+
+WORKDIR ${PROJECT_DIR}
+
+CMD ["bash"]
