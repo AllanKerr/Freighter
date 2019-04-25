@@ -5,6 +5,6 @@ import (
 )
 
 var (
-	parentLogLevel = logrus.GetLevel()
-	childLogLevel  = logrus.GetLevel()
+	parentLogLevel = logrus.DebugLevel
+	childLogLevel  = logrus.DebugLevel
 )

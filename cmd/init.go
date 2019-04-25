@@ -1,10 +1,12 @@
 package cmd
 
 import (
-	"sync"
+	"os"
+	"syscall"
 
 	"github.com/allankerr/freighter/log"
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 )
 
 func init() {
@@ -15,16 +17,22 @@ var initCmd = &cobra.Command{
 	Use: "init",
 	Run: func(cmd *cobra.Command, args []string) {
 
+		unix.Setsid()
 		log.InitChildLogger()
+		log.Debug("Child process started")
 
-		log.WithField("testField", 5).Info("info test")
-		log.WithField("args", args).Trace("trace test")
-		log.Debug("debug test")
-		log.Warn("warn test")
-		log.Error("error test")
+		f, err := unix.Open("/proc/self/fd/4", unix.O_RDWR, 0)
+		if err != nil {
+			log.Fatal("Failed to open pty slave")
+		}
+		for stdfd := 0; stdfd < 3; stdfd++ {
+			unix.Dup2(f, stdfd)
+		}
 
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		wg.Wait()
+		log.Debug("Calling exec")
+		err = syscall.Exec("/bin/bash", []string{"/bin/bash"}, os.Environ())
+		if err != nil {
+			log.WithError(err).Error("exec failed")
+		}
 	},
 }

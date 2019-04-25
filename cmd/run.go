@@ -16,7 +16,7 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		c := controller.NewController()
 		if err := c.Run(); err != nil {
-			log.Error("Failed to run container")
+			log.WithError(err).Error("Failed to run container")
 		} else {
 			log.Info("Succeeded")
 		}
