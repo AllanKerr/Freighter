@@ -4,6 +4,8 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/allankerr/freighter/fs"
+
 	"github.com/allankerr/freighter/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -29,7 +31,20 @@ var initCmd = &cobra.Command{
 			unix.Dup2(f, stdfd)
 		}
 
-		log.Debug("Calling exec")
+		rootfs, err := fs.NewRootFS("/testcontainer")
+		if err != nil {
+			log.WithError(err).Fatal("Unable to create root filesystem")
+		}
+		if err := rootfs.PrepareRoot(); err != nil {
+			log.WithError(err).Fatal("Failed to prepare root")
+		}
+		if err := rootfs.AddSystemCommands(); err != nil {
+			log.WithError(err).Fatal("Failed to add system commands")
+		}
+		if err := rootfs.PivotRoot(); err != nil {
+			log.WithError(err).Fatal("Failed to pivot root")
+		}
+
 		err = syscall.Exec("/bin/bash", []string{"/bin/bash"}, os.Environ())
 		if err != nil {
 			log.WithError(err).Error("exec failed")

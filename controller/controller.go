@@ -43,6 +43,9 @@ func (c *Controller) Run() error {
 	containerPty.Listen()
 
 	cmd := exec.Command("/proc/self/exe", "init")
+	cmd.SysProcAttr = &unix.SysProcAttr{
+		Cloneflags: unix.CLONE_NEWPID | unix.CLONE_NEWNS,
+	}
 
 	cmd.ExtraFiles = []*os.File{remoteLogger.Child(), slave}
 	if err := cmd.Start(); err != nil {
