@@ -16,7 +16,7 @@ build-dev:
 	docker build -f "$(DOCKER_FILE)" -t "$(DOCKER_IMAGE)" --build-arg PROJECT_DIR="$(PROJECTDIR)" .
 
 run-dev:
-	docker run -v "$(CURDIR):$(PROJECTDIR)" -it "$(DOCKER_IMAGE)"
+	docker run --privileged -v "$(CURDIR):$(PROJECTDIR)" -it "$(DOCKER_IMAGE)"
 
 deps:
 	go get
