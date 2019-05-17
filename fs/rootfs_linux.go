@@ -3,13 +3,18 @@ package fs
 import (
 	"fmt"
 	"os"
+	"path"
+
+	"github.com/allankerr/freighter/spec"
 
 	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 )
 
 type linuxRootFS struct {
-	target string
+	path       string
+	isReadOnly bool
+	prevWD     *string
 }
 
 type mountPoint struct {
@@ -19,148 +24,146 @@ type mountPoint struct {
 	isReadOnly bool
 }
 
-func NewRootFS(target string) (RootFS, error) {
+func NewRootFS(rootConfig spec.Root) (RootFS, error) {
 
-	if _, err := os.Stat(target); err != nil {
-		return nil, err
+	rootPath := path.Clean(rootConfig.Path)
+	if !path.IsAbs(rootPath) {
+		wd, err := unix.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		rootPath = path.Join(wd, rootPath)
 	}
-	return &linuxRootFS{target}, nil
+
+	return &linuxRootFS{
+		path:       rootPath,
+		isReadOnly: rootConfig.ReadOnly,
+	}, nil
 }
 
-func (root *linuxRootFS) PrepareRoot() error {
+func (root *linuxRootFS) PrepareRoot(rootPropagation string) error {
 
-	if err := unix.Mount(root.target, root.target, "bind", unix.MS_BIND|unix.MS_REC, ""); err != nil {
+	fileInfo, err := os.Stat(root.path)
+	if err != nil {
 		return err
 	}
-	if err := os.Chdir(root.target); err != nil {
+	if !fileInfo.IsDir() {
+		return fmt.Errorf("Invalid root path, expected directory: %s", root.path)
+	}
+	propagationType, err := getPropagationType(rootPropagation)
+	if err != nil {
 		return err
 	}
-	if err := mountProc(); err != nil {
+	if err := unix.Mount("", "/", "", propagationType, ""); err != nil {
 		return err
 	}
-	if err := mountDev(); err != nil {
-		return err
-	}
-	return createDefaultDevices()
+	return unix.Mount(root.path, root.path, "bind", unix.MS_BIND|unix.MS_REC, "")
 }
 
-func mountProc() error {
+func (root *linuxRootFS) CreateMounts(mounts []spec.Mount) (rerr error) {
 
-	if err := os.MkdirAll("proc", 0755); err != nil {
+	if err := root.setWD(); err != nil {
 		return err
 	}
-	return unix.Mount("proc", "proc", "proc", 0, "")
+	defer func() {
+		if err := root.restoreWD(); err != nil {
+			rerr = err
+		}
+	}()
+	for _, mount := range mounts {
+		if err := root.createMount(mount); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func mountDev() error {
-	if err := os.Mkdir("dev", 0755); err != nil {
-		return err
+func (root *linuxRootFS) createMount(mount spec.Mount) error {
+
+	dst := mount.Destination
+	if path.IsAbs(dst) {
+		dst = path.Join(root.path, path.Clean(dst))
 	}
-	return unix.Mount("tmpfs", "dev", "tmpfs", 0, "size=65536k")
+	fileInfo, err := os.Stat(dst)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.MkdirAll(dst, os.ModePerm); err != nil {
+			return err
+		}
+	} else if !fileInfo.IsDir() {
+		return fmt.Errorf("Invalid mount point, expected directory: %s", mount.Destination)
+	}
+
+	options := getMountOptions(mount.Options)
+	defaultFlags := getMountFlags(mount.MountType)
+
+	return unix.Mount(mount.Source, dst, mount.MountType, defaultFlags, options)
 }
 
-func createDefaultDevices() error {
+func (root *linuxRootFS) CreateDevices(devices []spec.Device) (rerr error) {
+	if err := root.setWD(); err != nil {
+		return err
+	}
+	defer func() {
+		if err := root.restoreWD(); err != nil {
+			rerr = err
+		}
+	}()
+	oldMask := unix.Umask(0000)
 
-	if err := createDevice("dev/null", unix.S_IFCHR, 1, 3, 0666); err != nil {
-		return err
+	for _, device := range devices {
+		if err := root.createDevice(device); err != nil {
+			return err
+		}
 	}
-	if err := createDevice("dev/zero", unix.S_IFCHR, 1, 5, 0666); err != nil {
-		return err
-	}
-	if err := createDevice("dev/full", unix.S_IFCHR, 1, 7, 0666); err != nil {
-		return err
-	}
-	if err := createDevice("dev/random", unix.S_IFCHR, 1, 8, 0666); err != nil {
-		return err
-	}
-	if err := createDevice("dev/urandom", unix.S_IFCHR, 1, 9, 0666); err != nil {
-		return err
-	}
-	return createDevice("dev/tty", unix.S_IFCHR, 5, 0, 0666)
+	unix.Umask(oldMask)
+
+	return nil
 }
 
-func createDevice(path string, mode uint32, major uint32, minor uint32, fileMode os.FileMode) error {
+func (root *linuxRootFS) createDevice(device spec.Device) error {
 
-	dev := unix.Mkdev(major, minor)
+	deviceMode, err := getDeviceMode(device.DevType)
+	if err != nil {
+		return err
+	}
+	path := path.Join(root.path, path.Clean(device.Path))
+	mode := deviceMode | uint32(device.FileMode)
+	dev := unix.Mkdev(device.Major, device.Minor)
+
 	if err := unix.Mknod(path, mode, int(dev)); err != nil {
 		return err
 	}
-	return os.Chmod(path, fileMode)
+	return unix.Chown(path, device.UID, device.GID)
 }
 
-func (root *linuxRootFS) AddSystemCommands() error {
+func (root *linuxRootFS) PivotRoot() (rerr error) {
 
-	if err := os.Chdir(root.target); err != nil {
+	if err := root.setWD(); err != nil {
 		return err
 	}
-
-	// TODO, convert to use overlayfs instead of RO bind mounts
-	mountPoints := getSystemCommandMountPoints()
-	for _, mountPoint := range mountPoints {
-		if err := createReadOnlyMount(mountPoint); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func getSystemCommandMountPoints() []mountPoint {
-	return []mountPoint{
-		mountPoint{"/bin", "bin", true, true},
-		mountPoint{"/lib", "lib", true, true},
-		mountPoint{"/lib32", "lib32", false, true},
-		mountPoint{"/lib64", "lib64", false, true},
-		mountPoint{"/usr/bin", "usr/bin", true, true},
-		mountPoint{"/usr/lib", "usr/lib", true, true},
-		mountPoint{"/usr/lib32", "usr/lib32", false, true},
-		mountPoint{"/usr/lib64", "usr/lib64", false, true},
-	}
-}
-
-func createReadOnlyMount(mountPoint mountPoint) error {
-
-	fileInfo, err := os.Stat(mountPoint.src)
-	if err != nil {
-		if mountPoint.isRequired {
-			return err
-		}
-		return nil
-	}
-	mode := fileInfo.Mode()
-	if (mode&os.ModeDir) == 0 && (mode&os.ModeSymlink) == 0 {
-		if mountPoint.isRequired {
-			return fmt.Errorf("Unexpected mode for required mount point: %s", mode)
-		}
-		return nil
-	}
-
-	if err := os.MkdirAll(mountPoint.dst, os.ModePerm); err != nil {
-		return err
-	}
-	if err := unix.Mount(mountPoint.src, mountPoint.dst, "bind", unix.MS_BIND|unix.MS_REC, ""); err != nil {
-		return err
-	}
-	if mountPoint.isReadOnly {
-		return unix.Mount("", mountPoint.dst, "", unix.MS_REMOUNT|unix.MS_BIND|unix.MS_RDONLY, "")
-	}
-	return nil
-}
-
-func (root *linuxRootFS) PivotRoot() error {
-
-	if err := os.Chdir(root.target); err != nil {
-		return err
-	}
+	root.clearWD()
 
 	oldRootTarget, err := createOldRootTarget()
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := os.Remove(oldRootTarget); err != nil {
+			rerr = err
+		}
+	}()
 	if err := unix.PivotRoot(".", oldRootTarget); err != nil {
 		return err
 	}
-	if err := removeOldRoot(oldRootTarget); err != nil {
-		return err
+	return unix.Unmount(oldRootTarget, unix.MNT_DETACH)
+}
+
+func (root *linuxRootFS) FinalizeRoot() error {
+	if root.isReadOnly {
+		return unix.Mount("", "/", "", unix.MS_REMOUNT|unix.MS_BIND|unix.MS_RDONLY, "")
 	}
 	return nil
 }
@@ -177,9 +180,28 @@ func createOldRootTarget() (string, error) {
 	return dirName, nil
 }
 
-func removeOldRoot(oldRootDir string) error {
-	if err := unix.Unmount(oldRootDir, unix.MNT_DETACH); err != nil {
+func (root *linuxRootFS) setWD() error {
+
+	if root.prevWD != nil {
+		return fmt.Errorf("setWD has already been called")
+	}
+	prevWD, err := os.Getwd()
+	if err != nil {
 		return err
 	}
-	return os.Remove(oldRootDir)
+	root.prevWD = &prevWD
+	return os.Chdir(root.path)
+}
+
+func (root *linuxRootFS) clearWD() {
+	root.prevWD = nil
+}
+
+func (root *linuxRootFS) restoreWD() error {
+
+	if err := os.Chdir(*root.prevWD); err != nil {
+		return err
+	}
+	root.prevWD = nil
+	return nil
 }

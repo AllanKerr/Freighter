@@ -4,6 +4,8 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/allankerr/freighter/spec"
+
 	"github.com/allankerr/freighter/fs"
 
 	"github.com/allankerr/freighter/log"
@@ -31,18 +33,27 @@ var initCmd = &cobra.Command{
 			unix.Dup2(f, stdfd)
 		}
 
-		rootfs, err := fs.NewRootFS("/testcontainer")
+		config := spec.BaseConfig
+
+		rootfs, err := fs.NewRootFS(config.Root)
 		if err != nil {
-			log.WithError(err).Fatal("Unable to create root filesystem")
+			log.WithError(err).Fatal("Failed to create rootfs")
 		}
-		if err := rootfs.PrepareRoot(); err != nil {
+
+		if err := rootfs.PrepareRoot(config.Linux.RootFSPropagation); err != nil {
 			log.WithError(err).Fatal("Failed to prepare root")
 		}
-		if err := rootfs.AddSystemCommands(); err != nil {
-			log.WithError(err).Fatal("Failed to add system commands")
+		if err := rootfs.CreateMounts(config.Mounts); err != nil {
+			log.WithError(err).Fatal("Failed to create mount")
+		}
+		if err := rootfs.CreateDevices(config.Linux.Devices); err != nil {
+			log.WithError(err).Fatal("Failed to create devices")
 		}
 		if err := rootfs.PivotRoot(); err != nil {
 			log.WithError(err).Fatal("Failed to pivot root")
+		}
+		if err := rootfs.FinalizeRoot(); err != nil {
+			log.WithError(err).Fatal("Failed to finalize root")
 		}
 
 		err = syscall.Exec("/bin/bash", []string{"/bin/bash"}, os.Environ())
