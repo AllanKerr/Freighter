@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/allankerr/freighter/process"
 	"github.com/allankerr/freighter/spec"
+	"github.com/allankerr/freighter/uts"
 
 	"github.com/allankerr/freighter/fs"
 
@@ -52,6 +53,10 @@ var initCmd = &cobra.Command{
 		}
 		if err := rootfs.FinalizeRoot(); err != nil {
 			log.WithError(err).Fatal("Failed to finalize root")
+		}
+
+		if err := uts.SetHostname(config.Hostname); err != nil {
+			log.WithError(err).Fatal("Failed to set hostname")
 		}
 
 		proc := process.New(config.Process)

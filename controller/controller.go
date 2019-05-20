@@ -44,7 +44,7 @@ func (c *Controller) Run() error {
 
 	cmd := exec.Command("/proc/self/exe", "init")
 	cmd.SysProcAttr = &unix.SysProcAttr{
-		Cloneflags: unix.CLONE_NEWPID | unix.CLONE_NEWNS,
+		Cloneflags: unix.CLONE_NEWPID | unix.CLONE_NEWNS | unix.CLONE_NEWUTS,
 	}
 
 	cmd.ExtraFiles = []*os.File{remoteLogger.Child(), slave}
