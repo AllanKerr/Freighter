@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"os"
-	"syscall"
-
+	"github.com/allankerr/freighter/process"
 	"github.com/allankerr/freighter/spec"
 
 	"github.com/allankerr/freighter/fs"
@@ -56,9 +54,9 @@ var initCmd = &cobra.Command{
 			log.WithError(err).Fatal("Failed to finalize root")
 		}
 
-		err = syscall.Exec("/bin/bash", []string{"/bin/bash"}, os.Environ())
-		if err != nil {
-			log.WithError(err).Error("exec failed")
+		proc := process.New(config.Process)
+		if err := proc.Run(); err != nil {
+			log.WithError(err).Fatal("Failed to run process")
 		}
 	},
 }
