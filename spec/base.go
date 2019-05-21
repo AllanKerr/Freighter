@@ -1,27 +1,27 @@
 package spec
 
 type Spec struct {
-	Root     Root
-	Mounts   []Mount
-	Process  Process
-	Hostname string
-	Linux    Linux
+	Root     Root    `json:"root"`
+	Mounts   []Mount `json:"mounts"`
+	Process  Process `json:"process"`
+	Hostname string  `json:"hostname"`
+	Linux    Linux   `json:"linux"`
 }
 
 type Root struct {
-	Path     string
-	ReadOnly bool
+	Path     string `json:"path"`
+	ReadOnly bool   `json:"readonly"`
 }
 
 type Mount struct {
-	Destination string
-	MountType   string
-	Source      string
-	Options     []string
+	Destination string   `json:"destination"`
+	MountType   string   `json:"type"`
+	Source      string   `json:"source"`
+	Options     []string `json:"options"`
 }
 
 type Process struct {
-	CWD  string
-	Env  []string
-	Args []string
+	CWD  string   `json:"cwd"`
+	Env  []string `json:"env"`
+	Args []string `json:"args"`
 }
