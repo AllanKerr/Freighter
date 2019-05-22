@@ -1,5 +1,11 @@
 package spec
 
+import (
+	"strings"
+
+	"golang.org/x/sys/unix"
+)
+
 type Spec struct {
 	Root     Root    `json:"root"`
 	Mounts   []Mount `json:"mounts"`
@@ -24,4 +30,16 @@ type Process struct {
 	CWD  string   `json:"cwd"`
 	Env  []string `json:"env"`
 	Args []string `json:"args"`
+}
+
+func (mount *Mount) GetFlags(mountType string) uintptr {
+	flags := uintptr(0)
+	if mountType == "bind" {
+		flags |= unix.MS_BIND
+	}
+	return flags
+}
+
+func (mount *Mount) GetOptions(options []string) string {
+	return strings.Join(options, ",")
 }
