@@ -6,6 +6,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const Version = "1.0.0"
+
 type Spec struct {
 	Root     Root    `json:"root"`
 	Mounts   []Mount `json:"mounts"`
