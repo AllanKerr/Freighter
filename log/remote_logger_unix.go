@@ -10,13 +10,21 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type defaultRemoteLogger struct {
+type unixRemoteLogger struct {
 	logger *logrus.Entry
 	logC   *os.File
 	logP   *os.File
 }
 
-func newRemoteLogger(logger *logrus.Entry) (RemoteLogger, error) {
+func newRemoteLogger() (RemoteLogger, error) {
+
+	loggerC := logrus.New()
+	loggerC.SetLevel(childLogLevel)
+	loggerC.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+	stdC := loggerC.WithField("_process", "child")
+
 	fds, err := unix.Socketpair(unix.AF_LOCAL, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, err
@@ -26,15 +34,15 @@ func newRemoteLogger(logger *logrus.Entry) (RemoteLogger, error) {
 	unix.CloseOnExec(fds[1])
 	unix.CloseOnExec(fds[0])
 
-	r := &defaultRemoteLogger{
-		logger: logger,
+	r := &unixRemoteLogger{
+		logger: stdC,
 		logC:   logC,
 		logP:   logP,
 	}
 	return r, nil
 }
 
-func (r *defaultRemoteLogger) listen() {
+func (r *unixRemoteLogger) listen() {
 	go func() {
 		scanner := bufio.NewScanner(r.logP)
 		for scanner.Scan() {
@@ -43,11 +51,11 @@ func (r *defaultRemoteLogger) listen() {
 	}()
 }
 
-func (r *defaultRemoteLogger) Child() *os.File {
+func (r *unixRemoteLogger) Child() *os.File {
 	return r.logC
 }
 
-func (r *defaultRemoteLogger) replayLogMessage(text string) {
+func (r *unixRemoteLogger) replayLogMessage(text string) {
 
 	var (
 		result map[string]interface{}

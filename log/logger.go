@@ -26,14 +26,7 @@ func InitParentLogger() RemoteLogger {
 	})
 	stdP = loggerP.WithField("_process", "parent")
 
-	loggerC := logrus.New()
-	loggerC.SetLevel(childLogLevel)
-	loggerC.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
-	stdC := loggerC.WithField("_process", "child")
-
-	rl, err := newRemoteLogger(stdC)
+	rl, err := newRemoteLogger()
 	if err != nil {
 		stdP.WithError(err).Fatal("An error occurred initializing logger")
 	}
@@ -43,18 +36,17 @@ func InitParentLogger() RemoteLogger {
 }
 
 // InitChildLogger initializes the child's local logger to send logs to the parent process.
-func InitChildLogger() {
+func InitChildLogger(file *os.File) {
 	if stdP != nil {
 		return
 	}
-	logC := os.NewFile(3, "log-c")
 	logger := logrus.New()
-	if logC == nil {
+	if file == nil {
 		logger.Fatal("Invalid child log file descriptor")
 	}
 	logger.SetFormatter(&logrus.JSONFormatter{})
 	logger.SetLevel(childLogLevel)
-	logger.SetOutput(logC)
+	logger.SetOutput(file)
 
 	stdP = logrus.NewEntry(logger)
 }
