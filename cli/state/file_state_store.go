@@ -35,7 +35,7 @@ func (f *fileStateStore) createNewState(containerID string) (*State, error) {
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		return nil, err
 	}
-	state := newDefaultState(containerID)
+	state := newDefaultState(containerID, dirPath)
 	if err := f.save(state); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,8 @@ func (f *fileStateStore) load(containerID string) (*State, error) {
 	if err := json.Unmarshal(stateFile, &data); err != nil {
 		return nil, err
 	}
-	state := newState(data)
+	dirPath := f.buildStateDirectoryPath(containerID)
+	state := newState(data, dirPath)
 	return state, nil
 }
 

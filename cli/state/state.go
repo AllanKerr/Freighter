@@ -27,20 +27,29 @@ func (s Status) String() string {
 }
 
 type State struct {
-	data stateData
+	data          stateData
+	directoryPath string
 }
 
-func newDefaultState(ID string) *State {
+func newDefaultState(ID string, directoryPath string) *State {
 	data := stateData{
 		OCIVersion: spec.Version,
 		ID:         ID,
 		status:     Creating.String(),
 	}
-	return &State{data}
+	return &State{data, directoryPath}
 }
 
-func newState(data stateData) *State {
-	return &State{data}
+func newState(data stateData, directoryPath string) *State {
+	return &State{data, directoryPath}
+}
+
+func (s *State) ID() string {
+	return s.data.ID
+}
+
+func (s *State) DirectoryPath() string {
+	return s.directoryPath
 }
 
 type stateData struct {
