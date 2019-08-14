@@ -16,14 +16,14 @@ type unixRemoteLogger struct {
 	logP   *os.File
 }
 
-func newRemoteLogger() (RemoteLogger, error) {
+func NewRemoteLogger(name string) (RemoteLogger, error) {
 
 	loggerC := logrus.New()
 	loggerC.SetLevel(childLogLevel)
 	loggerC.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-	stdC := loggerC.WithField("_process", "child")
+	stdC := loggerC.WithField("_name", name)
 
 	fds, err := unix.Socketpair(unix.AF_LOCAL, unix.SOCK_STREAM, 0)
 	if err != nil {
@@ -42,7 +42,7 @@ func newRemoteLogger() (RemoteLogger, error) {
 	return r, nil
 }
 
-func (r *unixRemoteLogger) listen() {
+func (r *unixRemoteLogger) Listen() {
 	go func() {
 		scanner := bufio.NewScanner(r.logP)
 		for scanner.Scan() {

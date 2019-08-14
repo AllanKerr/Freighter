@@ -15,24 +15,16 @@ var (
 
 // InitParentLogger initializes the parent's local logger and creates a
 // remote logger to listen for and replay logs from the child process.
-func InitParentLogger() RemoteLogger {
+func InitParentLogger() {
 	if stdP != nil {
-		return remoteLogger
+		return
 	}
 	loggerP := logrus.New()
 	loggerP.SetLevel(parentLogLevel)
 	loggerP.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-	stdP = loggerP.WithField("_process", "parent")
-
-	rl, err := newRemoteLogger()
-	if err != nil {
-		stdP.WithError(err).Fatal("An error occurred initializing logger")
-	}
-	remoteLogger = rl
-	remoteLogger.listen()
-	return remoteLogger
+	stdP = loggerP.WithField("_name", "freighter")
 }
 
 // InitChildLogger initializes the child's local logger to send logs to the parent process.
