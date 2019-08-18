@@ -1,6 +1,8 @@
 package container
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -41,7 +43,15 @@ func (c *containerLinux) Initialize() {
 		unix.Dup2(f, stdfd)
 	}*/
 
-	config := spec.BaseConfig
+	initFD, err := findFileDescriptor(ipc.InitName)
+	init := os.NewFile(initFD, "init-c")
+
+	reader := bufio.NewReader(init)
+	config, err := readConfig(reader)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to read container configuration")
+	}
+	log.WithField("config", config).Debug("Read config from init-c")
 
 	/*rootfs, err := fs.NewRootFS(config.Root)
 	if err != nil {
@@ -83,4 +93,16 @@ func (c *containerLinux) Initialize() {
 	if err := proc.Run(); err != nil {
 		log.WithError(err).Fatal("Failed to run process")
 	}
+}
+
+func readConfig(reader *bufio.Reader) (*spec.Spec, error) {
+	line, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, err
+	}
+	config := &spec.Spec{}
+	if err := json.Unmarshal(line, config); err != nil {
+		return nil, err
+	}
+	return config, nil
 }

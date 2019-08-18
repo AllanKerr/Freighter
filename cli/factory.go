@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,7 +23,7 @@ func createContainer(state *state.State, config *spec.Spec) error {
 	if err != nil {
 		return err
 	}
-	_, initC, err := createInitPipe()
+	initP, initC, err := createInitPipe()
 	if err != nil {
 		return err
 	}
@@ -45,6 +46,13 @@ func createContainer(state *state.State, config *spec.Spec) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+
+	configData, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	initP.Write(configData)
+	initP.WriteString("\n")
 
 	_, err = cmd.Process.Wait()
 	return err
