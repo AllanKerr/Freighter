@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -30,6 +31,9 @@ func (f *fileStateStore) Create(containerID string) (*State, error) {
 func (f *fileStateStore) createNewState(containerID string) (*State, error) {
 	dirPath := f.buildStateDirectoryPath(containerID)
 	if _, err := os.Stat(dirPath); err == nil || !os.IsNotExist(err) {
+		if err == nil {
+			err = fmt.Errorf("%s already exists", containerID)
+		}
 		return nil, err
 	}
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
