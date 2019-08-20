@@ -32,11 +32,15 @@ func createContainer(state *state.State, config *spec.Spec) error {
 		return err
 	}
 
+	flags := 0
+	for _, namespace := range config.Linux.Namespaces {
+		flags |= namespace.GetType()
+	}
 	cmd := exec.Command("/proc/self/exe", "init")
 	cmd.Env = []string{}
 	cmd.ExtraFiles = []*os.File{}
 	cmd.SysProcAttr = &unix.SysProcAttr{
-		//		Cloneflags: unix.CLONE_NEWPID | unix.CLONE_NEWNS | unix.CLONE_NEWUTS,
+		Cloneflags: uintptr(flags),
 	}
 
 	appendFile(cmd, fifo, ipc.FifoName)

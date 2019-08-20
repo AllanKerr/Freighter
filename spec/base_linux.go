@@ -7,8 +7,9 @@ import (
 )
 
 type Linux struct {
-	Devices           []Device `json:"devices"`
-	RootFSPropagation string   `json:"rootfsPropagation"`
+	Devices           []Device    `json:"devices"`
+	RootFSPropagation string      `json:"rootfsPropagation"`
+	Namespaces        []Namespace `json:"namespaces"`
 }
 
 type Device struct {
@@ -19,6 +20,10 @@ type Device struct {
 	FileMode os.FileMode `json:"fileMode"`
 	UID      int         `json:"uid"`
 	GID      int         `json:"gid"`
+}
+
+type Namespace struct {
+	Type string `json:"type"`
 }
 
 func (device *Device) GetType() uint32 {
@@ -52,6 +57,27 @@ func (linux *Linux) GetPropagationType() uintptr {
 		return unix.MS_UNBINDABLE
 	case "runbindable":
 		return unix.MS_UNBINDABLE | unix.MS_REC
+	}
+	return 0
+}
+
+func (namespace *Namespace) GetType() int {
+
+	switch namespace.Type {
+	case "pid":
+		return unix.CLONE_NEWPID
+	case "network":
+		return unix.CLONE_NEWNET
+	case "ipc":
+		return unix.CLONE_NEWIPC
+	case "uts":
+		return unix.CLONE_NEWUTS
+	case "mount":
+		return unix.CLONE_NEWNS
+	case "user":
+		return unix.CLONE_NEWUSER
+	case "cgroup":
+		return unix.CLONE_NEWCGROUP
 	}
 	return 0
 }
