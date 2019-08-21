@@ -53,7 +53,7 @@ func (c *containerLinux) Initialize() {
 	}
 	log.WithField("config", config).Debug("Read config from init-c")
 
-	/*rootfs, err := fs.NewRootFS(config.Root)
+	rootfs, err := NewRootFS(config.Root)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to create rootfs")
 	}
@@ -72,7 +72,7 @@ func (c *containerLinux) Initialize() {
 	}
 	if err := rootfs.FinalizeRoot(); err != nil {
 		log.WithError(err).Fatal("Failed to finalize root")
-	}*/
+	}
 
 	if err := setHostname(config.Hostname); err != nil {
 		log.WithError(err).Fatal("Failed to set hostname")
@@ -87,7 +87,6 @@ func (c *containerLinux) Initialize() {
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open FIFO file descriptor")
 	}
-	log.Info("Opened FIFO")
 
 	proc := process.New(config.Process)
 	if err := proc.Run(); err != nil {

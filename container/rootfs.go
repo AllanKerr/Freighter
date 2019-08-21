@@ -1,4 +1,4 @@
-package fs
+package container
 
 import "github.com/allankerr/freighter/spec"
 
