@@ -1,7 +1,7 @@
-package uts
+package container
 
 import "golang.org/x/sys/unix"
 
-func SetHostname(hostname string) error {
+func setHostname(hostname string) error {
 	return unix.Sethostname([]byte(hostname))
 }

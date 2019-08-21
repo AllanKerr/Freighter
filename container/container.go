@@ -72,11 +72,11 @@ func (c *containerLinux) Initialize() {
 	}
 	if err := rootfs.FinalizeRoot(); err != nil {
 		log.WithError(err).Fatal("Failed to finalize root")
-	}
-
-	if err := uts.SetHostname(config.Hostname); err != nil {
-		log.WithError(err).Fatal("Failed to set hostname")
 	}*/
+
+	if err := setHostname(config.Hostname); err != nil {
+		log.WithError(err).Fatal("Failed to set hostname")
+	}
 
 	fifoFD, err := findFileDescriptor(ipc.FifoName)
 	if err != nil {
