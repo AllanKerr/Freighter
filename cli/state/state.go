@@ -27,21 +27,23 @@ func (s Status) String() string {
 }
 
 type State struct {
+	store         StateStore
 	data          stateData
 	directoryPath string
 }
 
-func newDefaultState(ID string, directoryPath string) *State {
+func newDefaultState(store StateStore, ID string, directoryPath string) *State {
 	data := stateData{
 		OCIVersion: spec.Version,
 		ID:         ID,
-		status:     Creating.String(),
+		Status:     Creating.String(),
 	}
-	return &State{data, directoryPath}
+	return newState(store, data, directoryPath)
 }
 
-func newState(data stateData, directoryPath string) *State {
-	return &State{data, directoryPath}
+func newState(store StateStore, data stateData, directoryPath string) *State {
+
+	return &State{store, data, directoryPath}
 }
 
 func (s *State) ID() string {
@@ -52,11 +54,27 @@ func (s *State) DirectoryPath() string {
 	return s.directoryPath
 }
 
+func (s *State) SetPID(PID uint64) {
+	s.data.PID = PID
+}
+
+func (s *State) PID() uint64 {
+	return s.data.PID
+}
+
+func (s *State) SetStatus(status Status) {
+	s.data.Status = status.String()
+}
+
+func (s *State) Save() error {
+	return s.store.Save(s)
+}
+
 type stateData struct {
-	OCIVersion  string
-	ID          string
-	status      string
-	pid         uint64
-	bundle      string
-	annotations map[string]string
+	OCIVersion  string            `json:"ociVersion"`
+	ID          string            `json:"id"`
+	Status      string            `json:"status"`
+	PID         uint64            `json:"pid"`
+	Bundle      string            `json:"bundle"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }

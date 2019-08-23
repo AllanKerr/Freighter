@@ -39,7 +39,7 @@ func (f *fileStateStore) createNewState(containerID string) (*State, error) {
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		return nil, err
 	}
-	state := newDefaultState(containerID, dirPath)
+	state := newDefaultState(f, containerID, dirPath)
 	if err := f.save(state); err != nil {
 		return nil, err
 	}
@@ -66,14 +66,14 @@ func (f *fileStateStore) load(containerID string) (*State, error) {
 		return nil, err
 	}
 	dirPath := f.buildStateDirectoryPath(containerID)
-	state := newState(data, dirPath)
+	state := newState(f, data, dirPath)
 	return state, nil
 }
 
 func (f *fileStateStore) Save(state *State) error {
 	f.mux.Lock()
 	defer f.mux.Unlock()
-	return nil
+	return f.save(state)
 }
 
 func (f *fileStateStore) save(state *State) error {

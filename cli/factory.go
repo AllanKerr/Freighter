@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,10 +15,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func createContainer(state *state.State, config *spec.Spec) error {
+func createContainer(containerState *state.State, config *spec.Spec) error {
 
-	log.Error(state.ID())
-	fifo, err := createFIFO(state.DirectoryPath())
+	log.Error(containerState.ID())
+	fifo, err := createFIFO(containerState.DirectoryPath())
 	if err != nil {
 		return err
 	}
@@ -27,7 +26,7 @@ func createContainer(state *state.State, config *spec.Spec) error {
 	if err != nil {
 		return err
 	}
-	logC, err := createRemoteLogger(state.ID())
+	logC, err := createRemoteLogger(containerState.ID())
 	if err != nil {
 		return err
 	}
@@ -50,13 +49,26 @@ func createContainer(state *state.State, config *spec.Spec) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	containerState.SetPID(uint64(cmd.Process.Pid))
+	if err := containerState.Save(); err != nil {
+		return err
+	}
 
-	configData, err := json.Marshal(config)
+	initPipe := ipc.NewPipe(initP)
+	if err := initPipe.Send(ipc.MessageInitSpec, config); err != nil {
+		return err
+	}
+
+	statusChangePayload := &ipc.StatusChangePayload{}
+	msgType, err := initPipe.Receive(statusChangePayload)
 	if err != nil {
 		return err
 	}
-	initP.Write(configData)
-	initP.WriteString("\n")
+	if msgType != ipc.MessageStatusChange {
+		return fmt.Errorf("Received unexpected message type: %v", msgType)
+	}
+	containerState.SetStatus(state.Created)
+	containerState.Save()
 
 	_, err = cmd.Process.Wait()
 	return err

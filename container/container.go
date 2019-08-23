@@ -1,10 +1,10 @@
 package container
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/allankerr/freighter/cli/state"
 
 	"github.com/allankerr/freighter/ipc"
 	"github.com/allankerr/freighter/log"
@@ -44,12 +44,24 @@ func (c *containerLinux) Initialize() {
 	}*/
 
 	initFD, err := findFileDescriptor(ipc.InitName)
-	init := os.NewFile(initFD, "init-c")
+	if err != nil {
+		log.WithError(err).Fatal("Failed to find init file descriptor")
+	}
+	fifoFD, err := findFileDescriptor(ipc.FifoName)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to find FIFO file descriptor")
+	}
 
-	reader := bufio.NewReader(init)
-	config, err := readConfig(reader)
+	init := os.NewFile(initFD, "init-c")
+	initPipe := ipc.NewPipe(init)
+
+	config := &spec.Spec{}
+	msgType, err := initPipe.Receive(config)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read container configuration")
+	}
+	if msgType != ipc.MessageInitSpec {
+		log.WithField("type", msgType).Fatal("Received unexpected message type")
 	}
 	log.WithField("config", config).Debug("Read config from init-c")
 
@@ -78,10 +90,15 @@ func (c *containerLinux) Initialize() {
 		log.WithError(err).Fatal("Failed to set hostname")
 	}
 
-	fifoFD, err := findFileDescriptor(ipc.FifoName)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to find FIFO file descriptor")
+	log.Info("Container created...")
+
+	statusChangePayload := &ipc.StatusChangePayload{
+		Status: state.Created,
 	}
+	if err := initPipe.Send(ipc.MessageStatusChange, statusChangePayload); err != nil {
+		log.WithError(err).Fatal("Failed to send status change message")
+	}
+
 	fifoPath := fmt.Sprintf("/proc/self/fd/%d", fifoFD)
 	_, err = os.OpenFile(fifoPath, unix.O_WRONLY, 0)
 	if err != nil {
@@ -92,16 +109,4 @@ func (c *containerLinux) Initialize() {
 	if err := proc.Run(); err != nil {
 		log.WithError(err).Fatal("Failed to run process")
 	}
-}
-
-func readConfig(reader *bufio.Reader) (*spec.Spec, error) {
-	line, err := reader.ReadBytes('\n')
-	if err != nil {
-		return nil, err
-	}
-	config := &spec.Spec{}
-	if err := json.Unmarshal(line, config); err != nil {
-		return nil, err
-	}
-	return config, nil
 }
